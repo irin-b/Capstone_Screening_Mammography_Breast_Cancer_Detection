@@ -27,6 +27,6 @@ There are 5 utility modules created in this project to help automate machine lea
 
 Feel free to explore the  Jupyter notebooks in the notebook folder to see how these modules can be used in model development!
 
-Note: PCA and NMF trained on 512 x 512 and 1024 x 1024 images are too larget to be stored in the repository. They are available [here](https://drive.google.com/drive/folders/17bDPY74nv2s0e1BCvJQh0ECKpZYZR3Az?usp=sharing).
+Note: PCA and NMF trained on 512 x 512 and 1024 x 1024 images are too large to be stored in the repository. They are available [here](https://drive.google.com/drive/folders/17bDPY74nv2s0e1BCvJQh0ECKpZYZR3Az?usp=sharing).
 
 P.S. This project was not successful. If you would like to learn more about why, [here](https://drive.google.com/file/d/1oSDM29Z2ETLBEibrpd0sdwnkEKNsNaRJ/view?usp=share_link) is the full report.
