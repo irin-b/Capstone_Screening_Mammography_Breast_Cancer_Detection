@@ -28,4 +28,4 @@ There are 5 utility modules created in this project to help automate machine lea
 Feel free to explore the  Jupyter notebooks in the notebook folder to see how these modules can be used in model development!
 
 
-P.S. This project was not successful. If you would like to learn more about why, here is the full report.
+P.S. This project was not successful. If you would like to learn more about why, [here](https://drive.google.com/file/d/1oSDM29Z2ETLBEibrpd0sdwnkEKNsNaRJ/view?usp=share_link) is the full report.
