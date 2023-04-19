@@ -1,6 +1,6 @@
 # Capstone-Project-Screening-Mammography-Breast-Cancer-Detection
 
-Overview
+**Overview**
 
 The aim of our project is to develop interpretable predictive models, to aid radiologists and other related clinical personnels in detecting early signs of breast cancer from screening mammography by providing a probability of malignancy.
 
@@ -8,13 +8,16 @@ Additionally, the trade-off between performance, training cost, and interpretabi
 
 
 
-Dataset
+
+**Dataset**
 The datasets consist of 54,713 files in total and are 314.72 GB in size. They can be directly downloaded from Kaggle by joining the RSNA Screening Mammography Breast Cancer Detection competition organized by Radiological Society of North America.
 
 Link to datasets: https://www.kaggle.com/competitions/rsna-breast-cancer-detection/data
 
 
-How to run the experiment?
+
+
+**How to run the experiment?**
 
 There are 5 utility modules created in this project to help automate machine learning pipeline from image preprocessing to model evaluation. To use them in your notebook or script, place them in the same folder and import them by name.
 
