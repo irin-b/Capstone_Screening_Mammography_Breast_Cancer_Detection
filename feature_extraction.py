@@ -91,6 +91,8 @@ def evaluate_feature_extractor(img_gen, trained_model, verbose=True):
     diff_stats = StatsRecorder()
 
     i = 1
+    not verbose or print('Start evaluation...')
+
     for batch in img_gen:
 
         batch_stats.update(batch)
@@ -113,6 +115,15 @@ def evaluate_feature_extractor(img_gen, trained_model, verbose=True):
 
         i+=1
 
+    # generalized Kullback-Leibler divergence
+    if beta == 1:
+        # fast and memory efficient computation of np.sum(np.dot(W, H))
+        sum_WH = np.dot(np.sum(W, axis=0), np.sum(H, axis=1))
+        # computes np.sum(X * log(X / WH)) only where X is nonzero
+        div = X_data / WH_data
+        res = np.dot(X_data, np.log(div))
+        # add full np.sum(np.dot(W, H)) - np.sum(X)
+        
     not verbose or print('>> Calculating explained variance...')
     explained_var = np.mean(1 - (diff_stats.var/batch_stats.var))
     not verbose or print('--> ', explained_var)
@@ -157,27 +168,16 @@ def cv_train_feature_extractor(
             train_img_ids = cv_img[fold]['train']  # list of image_id
 
             start = time.time()
-            
-            if from_numpy==True:
-                
-                train_img_gen = dl.ImgGen_from_numpy(
-                    list_IDs = train_img_ids,
-                    batch_size = batch_size,
-                    basepath = basepath,
-                    img_size = img_size,
-                    normalize = normalize
-                )
-                
-            else:
                        
-                train_img_gen = dl.ImgGenerator(
+            train_img_gen = dl.ImgGenerator(
                 list_IDs = train_img_ids,
                 patient_img_dict = patient_img_dict,
                 batch_size = batch_size,
                 basepath = basepath,
                 img_size = img_size,
-                normalize = normalize
-                )
+                normalize = normalize,
+                from_numpy = from_numpy
+            )
                 
 
             model = train_feature_extractor(
@@ -202,28 +202,17 @@ def cv_train_feature_extractor(
 
             val_img_ids = cv_img[fold]['validate']  # list of image_id
             
-            if from_numpy==True:
-                
-                train_img_gen = dl.ImgGen_from_numpy(
-                    list_IDs = train_img_ids,
-                    batch_size = batch_size,
-                    basepath = basepath,
-                    img_size = img_size,
-                    normalize = normalize
-                )
-                
-            else:
-                
-                val_img_gen = dl.ImgGenerator(
-                    list_IDs = val_img_ids,
-                    patient_img_dict = patient_img_dict,
-                    batch_size = batch_size,
-                    basepath = basepath,
-                    img_size = img_size,
-                    normalize = normalize
-                )
+            val_img_gen = dl.ImgGenerator(
+                list_IDs = val_img_ids,
+                patient_img_dict = patient_img_dict,
+                batch_size = batch_size,
+                basepath = basepath,
+                img_size = img_size,
+                normalize = normalize,
+                from_numpy = from_numpy
+            )
 
-                explained_var, reconstruction_err = evaluate_feature_extractor(val_img_gen, model, verbose=verbose)
+            explained_var, reconstruction_err = evaluate_feature_extractor(val_img_gen, model, verbose=verbose)
 
             explained_vars[fold] = explained_var
             reconstruction_errs[fold] = reconstruction_err
@@ -236,82 +225,5 @@ def cv_train_feature_extractor(
             
     return models, training_time
 
-
-
-
-# def cv_train_feature_extractor(
-#         cv_img, patient_img_dict, batch_size, basepath, img_size, normalize, random_state, model_name, n_components, 
-#         extractor_path=EXTRACTOR_PATH, verbose=True, evaluate=False, return_none=False    
-#         ):
-
-#     models = {}
-#     training_time = {}
-#     explained_vars = {}
-#     reconstruction_errs = {}
-
-#     for fold in cv_img:
-        
-#         not verbose or print('Fold: ', fold)
-#         savepath = extractor_path +  '/' + model_name + '_' + str(n_components) + '_' + str(random_state) + '_' + str(fold) + '.pkl'
-
-#         # check if already exist
-#         if os.path.exists(savepath):
-#             print('{} model trained on this cross-validation fold already exist'.format(model_name))
-#             print('-->', savepath)
-            
-#             model = pickle.load(open(savepath, 'rb'))
-        
-#         else:
-
-#             train_img_ids = cv_img[fold]['train']  # list of image_id
-
-#             start = time.time()
-#             train_img_gen = dl.ImgGenerator(
-#                 list_IDs = train_img_ids,
-#                 patient_img_dict = patient_img_dict,
-#                 batch_size = batch_size,
-#                 basepath = basepath,
-#                 img_size = img_size,
-#                 normalize = normalize
-#                 )
-
-#             model = train_feature_extractor(
-#                 img_gen = train_img_gen,
-#                 model_name = model_name,
-#                 n_components = n_components,
-#                 save_path = savepath,
-#                 verbose = verbose
-#                 )
-#             stop = time.time()
-
-#         models[fold] = model
-#         training_time[fold] = start - stop    
-#         not verbose or print('-->> Training time: ', (start - stop))
-
-#         if evaluate:
-
-#             val_img_ids = cv_img[fold]['validate']  # list of image_id
-
-#             val_img_gen = dl.ImgGenerator(
-#                 list_IDs = val_img_ids,
-#                 patient_img_dict = patient_img_dict,
-#                 batch_size = batch_size,
-#                 basepath = basepath,
-#                 img_size = img_size,
-#                 normalize = normalize
-#             )
-
-#             explained_var, reconstruction_err = evaluate_feature_extractor(val_img_gen, model, verbose=verbose)
-
-#             explained_vars[fold] = explained_var
-#             reconstruction_errs[fold] = reconstruction_err
-
-#     if evaluate == True:
-#         return models, training_time, explained_vars, reconstruction_errs            
-            
-#     if return_none: # ignored if evaluate = True
-#         return training_time
-            
-#     return models, training_time
 
 

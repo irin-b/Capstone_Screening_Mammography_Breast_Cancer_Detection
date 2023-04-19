@@ -1,11 +1,10 @@
-# pip install pydicom
-
 import numpy as np
 import tensorflow as tf
 import keras
 
 from zipfile import ZipFile
 import os
+import random
 import pydicom
 import cv2
 
@@ -65,7 +64,11 @@ def read_and_preprocess(basepath, image_id, img_size=IMG_SIZE, normalize=(-1, 1)
         img = tf.image.per_image_standardization(img)
     
     elif normalize == (0, 1):
-        img = img / 255
+        if np.max(img)>255:
+            img = img / 65535
+        else:
+            img = img / 255
+
         img = tf.convert_to_tensor(img, dtype=tf.float32)
 
     img = tf.image.resize(img, [img_size[0], img_size[1]])
@@ -81,6 +84,13 @@ def read_numpy(basepath, image_id, img_size, normalize=(0, 1), numpy_size=NUMPY_
             
     if normalize==(-1, 1):
         img = (img - np.mean(img)) / np.std(img)
+
+    # numpy files are already normalized by 'read_and_preprocess' function
+    # elif normalized==(0, 1):
+    #     if np.max(img)>255:
+    #         img = img / 65535
+    #     else:
+    #         img = img / 255
     
     if img_size[:2] != numpy_size[:2]:
         img = cv2.resize(img, dsize=(img_size[0], img_size[1]), interpolation=cv2.INTER_LINEAR)
@@ -94,7 +104,10 @@ def read_numpy(basepath, image_id, img_size, normalize=(0, 1), numpy_size=NUMPY_
 
 class ImgGenerator(tf.keras.utils.Sequence):
 
-    def __init__(self, list_IDs, patient_img_dict, batch_size, basepath=BASEPATH, img_size=IMG_SIZE, normalize=(-1, 1), from_numpy=False):
+    def __init__(self, list_IDs, patient_img_dict,
+                 batch_size, basepath=BASEPATH, img_size=IMG_SIZE,
+                 normalize=(-1, 1), from_numpy=False):
+        
         self.list_IDs = list_IDs  # all image_id in the training set
         self.batch_size = batch_size
         self.patient_img = patient_img_dict # splitter.train containing {patient_id: [image_id, ...]} of the training set
@@ -138,71 +151,31 @@ class ImgGenerator(tf.keras.utils.Sequence):
     
 
 
-class ImgGen_from_numpy(tf.keras.utils.Sequence):
-
-    def __init__(self, list_IDs, batch_size, basepath=BASEPATH, img_size=IMG_SIZE, normalize=(0, 1)):
-        self.list_IDs = list_IDs  # all image_id in the training set
-        self.batch_size = batch_size
-        self.basepath = basepath
-        self.img_size = img_size
-        self.normalize = normalize
-
-    def __len__(self):
-        return int(np.floor(len(self.list_IDs) / float(self.batch_size)))
-
-    def __data_generation(self, list_IDs_temp):
-
-        'Generates data containing batch_size samples' # X : (n_samples, img_sizes)
-        # Initialization
-        X = np.empty((self.batch_size, self.img_size[0]*self.img_size[1]))
-
-        # Generate data
-        for i, ID in enumerate(list_IDs_temp):
-            # print(ID)
-            # Store sample
-            file_path = self.basepath + '/' + str(ID) + '.npy' 
-            x = np.load(file_path)
-            
-            if self.normalize==(-1, 1):
-                x = (x - np.mean(x)) / np.std(x)
-            
-            if self.img_size[:2] != NUMPY_SIZE[:2]:
-                x = cv2.resize(x, dsize=(self.img_size[0], self.img_size[1]), interpolation=cv2.INTER_LINEAR)    
-                
-            X[i,] = x.flatten()
-
-        return X
-
-    def __getitem__(self, index):
-        'Generate one batch of data'
-        # Generate indexes of the batch
-        list_IDs_temp = self.list_IDs[index*self.batch_size : (index+1)*self.batch_size]
-
-        # Generate data
-        X_batch = self.__data_generation(list_IDs_temp)
-
-        return X_batch
-    
-
-
-    
-# generator class for predictive model (output both X and y)
-
 class DataGenerator(keras.utils.Sequence):
   
     'Generates data for Keras'
     def __init__(self, list_IDs, labels, patient_img_dict,
+                IDs_by_class=None, class_ratio=None,
                 from_numpy=False, basepath=BASEPATH,
-                batch_size=BATCH_SIZE, img_size=IMG_SIZE, n_classes=2,
+                batch_size=BATCH_SIZE, img_size=IMG_SIZE, 
                 shuffle=True, normalize=(-1, 1),
                 feature_extractor=None, CNN_preprocess=None,
-                verbose=False):
+                return_id=False, verbose=False):
     
         'Initialization'
         self.list_IDs = list_IDs
-        self.n_classes = n_classes
+        self.IDs_by_class = IDs_by_class
+        
+        if (np.sum(class_ratio)!=1)&(class_ratio is not None):
+            print('Invalid class ratio of {}. Class ratio of both classes should sum to 1'.format(np.sum(class_ratio)))
+            print('Class ratio not used.')
+            self.class_ratio = None
+        else:
+            self.class_ratio = class_ratio
+
         self.labels = labels
         self.patient_img = patient_img_dict
+
         self.img_size = img_size
         self.batch_size = batch_size
 
@@ -222,13 +195,21 @@ class DataGenerator(keras.utils.Sequence):
         self.basepath = basepath
         self.shuffle = shuffle
         self.normalize = normalize
+        self.return_id = return_id
         self.verbose = verbose
         self.on_epoch_end()
 
 
     def __len__(self):
+
         'Denotes the number of batches per epoch'
-        return int(np.floor(len(self.list_IDs) / self.batch_size))
+        if self.class_ratio is None:
+            num_batch = int(np.floor(len(self.list_IDs) / self.batch_size))
+        else:
+            len_class_0 = int(np.floor(self.class_ratio[0]*self.batch_size))
+            num_batch = int(np.floor(len(self.IDs_by_class[0]) / len_class_0))
+
+        return num_batch
 
 
     def on_epoch_end(self):
@@ -254,7 +235,7 @@ class DataGenerator(keras.utils.Sequence):
             
                 # Store sample
                 if self.from_numpy == True:
-                    X[i,] = read_numpy(self.basepath, ID, self.img_size, self.normalize, numpy_size=NUMPY_SIZE)
+                    X[i,] = np.squeeze(read_numpy(self.basepath, ID, self.img_size, self.normalize, numpy_size=NUMPY_SIZE))
 
                 else:
                     patient_id = [i for i in self.patient_img if ID in (self.patient_img[i])][0]
@@ -323,23 +304,40 @@ class DataGenerator(keras.utils.Sequence):
                 # Store class
                 y[i] = self.labels[ID]
 
-
-
+        
         #return X, keras.utils.to_categorical(y, num_classes=self.n_classes)
         return X, y
 
 
 
     def __getitem__(self, index):
-        'Generate one batch of data'
-        # Generate indexes of the batch
-        indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
+    # where index arg is [i for i in range(batch_size)] ?
 
-        # Find list of IDs
-        list_IDs_temp = [self.list_IDs[k] for k in indexes]
+        'Generate one batch of data'
+        if self.class_ratio is None:
+            # Generate indexes of the batch
+            indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
+
+            # Find list of IDs
+            list_IDs_temp = [self.list_IDs[k] for k in indexes]
+
+        else:
+            batch_size_class_0 = int(np.floor(self.class_ratio[0]*self.batch_size))
+            batch_size_class_1 = int(np.ceil(self.class_ratio[1]*self.batch_size))
+
+            class_0_IDs = self.IDs_by_class[0][index*batch_size_class_1:(index+1)*batch_size_class_1]
+            # class_1_IDs = random.sample(self.IDs_by_class[1], len_class_1)
+            class_1_IDs = [random.choice(self.IDs_by_class[1]) for _ in range(batch_size_class_1)]
+
+            list_IDs_temp = [*class_0_IDs, *class_1_IDs]
+            random.shuffle(list_IDs_temp)
 
         # Generate data
         X, y = self.__data_generation(list_IDs_temp)
+
+        if self.return_id:
+            return list_IDs_temp, X, y
+        
         return X, y
 
 

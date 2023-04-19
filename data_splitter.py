@@ -95,7 +95,7 @@ class DataSplitter:
         
         train_ids = self.train.keys()
         X, y = self.cancer_by_patient(id_subset=train_ids)
-        X_train, X_calib, y_train, y_calib = train_test_split(X, y, test_size=0.20, random_state=random_state, stratify=y)
+        X_train, X_calib, y_train, y_calib = train_test_split(X, y, test_size=0.15, random_state=random_state, stratify=y)
 
         if self.verbose==True:
             print('Total patient_id in training set: ', X_train.patient_id.nunique())
@@ -130,6 +130,27 @@ class DataSplitter:
             image_ids.extend(imgs)
 
         return image_ids
+
+
+    # split calibration set into training and validation sets
+    def get_calib_split(self, random_state=RANDOM_STATE):
+
+        calib_ids = self.calibset.keys()
+        X, y = self.cancer_by_patient(id_subset=calib_ids)
+        X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.20, random_state=random_state, stratify=y)
+
+        if self.verbose==True:
+            print('Total patient_id in calibration training set: ', X_train.patient_id.nunique())
+            print('Total patient_id in calibration validation set: ', X_valid.patient_id.nunique())
+
+        train = self.get_image_id(X_train)
+        valid = self.get_image_id(X_valid)
+
+        if self.verbose==True:
+            print('Total image_id in calibration training set: ', sum([len(val) for key, val in train.items()]))
+            print('Total image_id in calibration validation set: ', sum([len(val) for key, val in valid.items()]))
+
+        return train, valid
 
 
     # split data into cross-validation folds
@@ -168,24 +189,31 @@ class DataSplitter:
                 print('----Total image_id in validation set: ', len(cv_img[i]['validate']))
 
         return cv_patient, cv_img
+    
+
+    # split data into cross-validation folds
+    def get_cv_train_img_by_class(self, cv_img):
+
+        cv_img_class = {}
+        for fold in range(len(cv_img)):
+
+            train_img = cv_img[fold]['train']
+            cancer_img = self.metadata[(self.metadata.image_id.isin(train_img))&(self.metadata.cancer==1)].image_id.unique()
+            no_cancer_img = self.metadata[(self.metadata.image_id.isin(train_img))&(self.metadata.cancer==0)].image_id.unique()
+
+            cv_img_class[fold] = {}
+            cv_img_class[fold][0] = no_cancer_img
+            cv_img_class[fold][1] = cancer_img
+
+            if self.verbose==True:
+                print('--Fold: ', fold)
+                print('----Total image_id in training set with class 0: ', len(cv_img_class[fold][0]))
+                print('----Total image_id in training set with class 1: ', len(cv_img_class[fold][1]))
+        
+        return cv_img_class
 
 
-    # split calibration set into training and validation sets
-    def get_calib_split(self, random_state=RANDOM_STATE):
 
-        calib_ids = self.calibset.keys()
-        X, y = self.cancer_by_patient(id_subset=calib_ids)
-        X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.20, random_state=random_state, stratify=y)
 
-        if self.verbose==True:
-            print('Total patient_id in calibration training set: ', X_train.patient_id.nunique())
-            print('Total patient_id in calibration validation set: ', X_valid.patient_id.nunique())
 
-        train = self.get_image_id(X_train)
-        valid = self.get_image_id(X_valid)
-
-        if self.verbose==True:
-            print('Total image_id in calibration training set: ', sum([len(val) for key, val in train.items()]))
-            print('Total image_id in calibration validation set: ', sum([len(val) for key, val in valid.items()]))
-
-        return train, valid
+    
