@@ -16,7 +16,7 @@ Link to datasets: https://www.kaggle.com/competitions/rsna-breast-cancer-detecti
 
 How to run the experiment?
 
-There are 4 utility modules created in this project to help automate machine learning pipeline from image preprocessing to model evaluation
+There are 4 utility modules created in this project to help automate machine learning pipeline from image preprocessing to model evaluation. To use them in your notebook or script, place them in the same folder and import them by name.
 
 - data_splitter.py is mainly used to provide consistent data partitioning into training, calibration, and test sets.
 - data_loader.py contains the data generator classes that are used to read, preprocess and genearate image data with or without their corresponding target label to be used in batch training.
